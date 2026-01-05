@@ -6,6 +6,7 @@ A high-performance Cloudflare Worker that serves as a caching layer for the [EDD
 
 - **Stale-While-Revalidate**: Serves stale content immediately while fetching fresh data in the background
 - **Automatic Retry Logic**: Exponential backoff retry for origin failures (3 attempts)
+- **Failover Support**: Automatic failover to backup origin on primary failure
 - **Smart Caching**: Configurable TTL per file type with extended stale periods
 - **Compression Support**: Accepts Brotli, Gzip, and Deflate compression
 - **Security Headers**: Includes X-Frame-Options, CSP, and other security headers
@@ -13,6 +14,7 @@ A high-performance Cloudflare Worker that serves as a caching layer for the [EDD
 - **Analytics Ready**: Optional error logging and metrics endpoint
 - **Health Checks**: Built-in health check endpoint for monitoring
 - **Edge Performance**: Leverages Cloudflare's global edge network
+- **Passthrough Mode**: Transparently passes through non-cache requests to origin
 
 ## 📊 Architecture
 
@@ -48,9 +50,16 @@ Configure in `wrangler.jsonc`:
 "vars": {
   "ENVIRONMENT": "production",
   "ORIGIN_URL": "https://api.eddata.dev",
+  "FAILOVER_URL": "https://backup-api.eddata.dev",
   "ENABLE_METRICS": "false"
 }
 ```
+
+**Variables:**
+- `ORIGIN_URL`: Primary origin server
+- `FAILOVER_URL`: Backup origin server (optional, for failover)
+- `ENVIRONMENT`: Environment name (production/staging/development)
+- `ENABLE_METRICS`: Enable `/metrics` endpoint (true/false)
 
 ## 🛠️ Installation & Deployment
 
@@ -135,11 +144,13 @@ GET /health
   "timestamp": "2026-01-05T12:00:00.000Z",
   "environment": "production",
   "origin": "https://api.eddata.dev",
+  "failover": "https://backup-api.eddata.dev",
   "features": {
     "staleWhileRevalidate": true,
     "retryLogic": true,
     "compression": true,
-    "securityHeaders": true
+    "securityHeaders": true,
+    "failover": true
   }
 }
 ```

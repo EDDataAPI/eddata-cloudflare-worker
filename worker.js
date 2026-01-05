@@ -77,12 +77,10 @@ export default {
       return handleCORS()
     }
 
-    // Only allow GET and HEAD requests
+    // Only allow GET and HEAD requests for caching
+    // Other methods pass through to origin
     if (request.method !== 'GET' && request.method !== 'HEAD') {
-      return new Response('Method Not Allowed', {
-        status: 405,
-        headers: { ...CORS_HEADERS, ...SECURITY_HEADERS }
-      })
+      return passthroughToOrigin(request, url, originUrl, env)
     }
 
     try {
@@ -100,12 +98,9 @@ export default {
       else if (url.pathname === '/metrics' && env.ENABLE_METRICS === 'true') {
         response = handleMetrics(env)
       }
-      // 404 for other paths
+      // All other paths: passthrough to origin (e.g., /api/*)
       else {
-        response = new Response('Not Found', {
-          status: 404,
-          headers: { ...CORS_HEADERS, ...SECURITY_HEADERS }
-        })
+        return passthroughToOrigin(request, url, originUrl, env)
       }
 
       // Add response time header
@@ -140,6 +135,37 @@ export default {
         }
       })
     }
+  }
+}
+
+/**
+ * Passthrough request to origin server without caching
+ */
+async function passthroughToOrigin (request, url, originUrl, env) {
+  try {
+    // Build origin URL - replace hostname but keep path and query
+    const originUrlObj = new URL(originUrl)
+    const targetUrl = new URL(url.pathname + url.search, originUrl)
+
+    // Forward the request to origin
+    const response = await fetch(targetUrl.toString(), {
+      method: request.method,
+      headers: request.headers,
+      body: request.body,
+      redirect: 'follow'
+    })
+
+    // Return response with worker headers
+    return addHeaders(response, {
+      'X-Cache': 'PASSTHROUGH',
+      'X-Passthrough': 'true'
+    })
+  } catch (error) {
+    console.error('Passthrough error:', error)
+    return new Response('Bad Gateway', {
+      status: 502,
+      headers: { ...CORS_HEADERS, ...SECURITY_HEADERS }
+    })
   }
 }
 
@@ -234,11 +260,16 @@ async function handleCacheRequest (request, url, ctx, originUrl, env) {
 }
 
 /**
- * Fetch from origin with retry logic
+ * Fetch from origin with retry logic and failover support
  */
-async function fetchWithRetry (url, env, attempt = 0) {
+async function fetchWithRetry (url, env, attempt = 0, useFailover = false) {
+  // Use failover URL if enabled and available
+  const targetUrl = useFailover && env.FAILOVER_URL 
+    ? url.replace(env.ORIGIN_URL || 'https://api.eddata.dev', env.FAILOVER_URL)
+    : url
+
   try {
-    const response = await fetch(url, {
+    const response = await fetch(targetUrl, {
       headers: {
         'User-Agent': `Cloudflare-Worker/EDData-Collector/${VERSION}`,
         'Accept': 'application/json',
@@ -251,6 +282,12 @@ async function fetchWithRetry (url, env, attempt = 0) {
       }
     })
 
+    // If primary origin fails and we haven't tried failover yet, try failover
+    if ((response.status >= 500 || response.status === 429) && !useFailover && env.FAILOVER_URL) {
+      console.log('Primary origin failed, trying failover...')
+      return fetchWithRetry(url, env, 0, true)
+    }
+
     // Retry on 5xx errors or 429 (rate limit)
     if ((response.status >= 500 || response.status === 429) && attempt < RETRY_CONFIG.maxRetries) {
       const delay = Math.min(
@@ -258,19 +295,25 @@ async function fetchWithRetry (url, env, attempt = 0) {
         RETRY_CONFIG.maxDelay
       )
       await sleep(delay)
-      return fetchWithRetry(url, env, attempt + 1)
+      return fetchWithRetry(url, env, attempt + 1, useFailover)
     }
 
     return response
   } catch (error) {
-    // Network error - retry
+    // Network error - try failover if not already using it
+    if (!useFailover && env.FAILOVER_URL) {
+      console.log('Network error on primary, trying failover...', error.message)
+      return fetchWithRetry(url, env, 0, true)
+    }
+
+    // Retry network errors
     if (attempt < RETRY_CONFIG.maxRetries) {
       const delay = Math.min(
         RETRY_CONFIG.initialDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt),
         RETRY_CONFIG.maxDelay
       )
       await sleep(delay)
-      return fetchWithRetry(url, env, attempt + 1)
+      return fetchWithRetry(url, env, attempt + 1, useFailover)
     }
     throw error
   }
@@ -377,12 +420,14 @@ function handleHealthCheck (env) {
     timestamp: new Date().toISOString(),
     environment: env.ENVIRONMENT || 'production',
     origin: env.ORIGIN_URL || 'https://api.eddata.dev',
+    failover: env.FAILOVER_URL || 'none',
     features: {
       staleWhileRevalidate: true,
       retryLogic: true,
       compression: true,
       securityHeaders: true,
-      rateLimit: true
+      rateLimit: true,
+      failover: !!env.FAILOVER_URL
     },
     limits: {
       freeRequests: '100,000/day',

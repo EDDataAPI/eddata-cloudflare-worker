@@ -15,16 +15,17 @@ preview_urls = true
 # account_id = "YOUR_ACCOUNT_ID"  # Get from Cloudflare Dashboard
 # workers_dev = true  # Enable for development on workers.dev subdomain
 
-# Route configuration - handles /cache/* on api.eddata.dev
-# This allows clients to continue using api.eddata.dev without changes
+# Route configuration - handles entire api.eddata.dev domain
+# Worker caches /cache/* requests and passes through all other requests (e.g., /api/*)
 [[routes]]
-pattern = "api.eddata.dev/cache/*"
+pattern = "api.eddata.dev/*"
 zone_name = "eddata.dev"
 
 # Environment Variables
 [vars]
 ENVIRONMENT = "production"
 ORIGIN_URL = "https://api.eddata.dev"
+FAILOVER_URL = "https://backup-api.eddata.dev"
 VERSION = "1.0.0"
 ENABLE_METRICS = "false"  # Set to "true" to enable /metrics endpoint
 
