@@ -1,0 +1,43 @@
+{
+  "name": "eddata-cloudflare-worker",
+  "version": "1.0.0",
+  "description": "High-performance Cloudflare Worker caching layer for EDData API with stale-while-revalidate support",
+  "main": "worker.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "test": "wrangler dev --test",
+    "login": "wrangler login",
+    "whoami": "wrangler whoami",
+    "cf-typegen": "wrangler types"
+  },
+  "keywords": [
+    "cloudflare",
+    "worker",
+    "edge",
+    "cdn",
+    "cache",
+    "elite-dangerous",
+    "eddata",
+    "stale-while-revalidate",
+    "performance"
+  ],
+  "author": "EDDataAPI Team",
+  "license": "AGPL-3.0",
+  "devDependencies": {
+    "wrangler": "^4.54.0"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EDDataAPI/eddata-cloudflare-worker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/EDDataAPI/eddata-cloudflare-worker/issues"
+  },
+  "homepage": "https://github.com/EDDataAPI/eddata-cloudflare-worker#readme"
+}
