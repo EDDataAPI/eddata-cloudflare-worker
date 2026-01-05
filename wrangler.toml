@@ -15,9 +15,11 @@ preview_urls = true
 # account_id = "YOUR_ACCOUNT_ID"  # Get from Cloudflare Dashboard
 # workers_dev = true  # Enable for development on workers.dev subdomain
 
-# Custom Domain (configure after deployment)
-# Uncomment and update with your domain:
-# route = { pattern = "cache.eddata.dev/*", zone_name = "eddata.dev" }
+# Route configuration - handles /cache/* on api.eddata.dev
+# This allows clients to continue using api.eddata.dev without changes
+[[routes]]
+pattern = "api.eddata.dev/cache/*"
+zone_name = "eddata.dev"
 
 # Environment Variables
 [vars]

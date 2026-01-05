@@ -182,9 +182,11 @@ Expected response:
 
 ## Custom Domain Setup (Optional)
 
-If you have a domain managed by Cloudflare:
+### Option A: Use Same Domain as API (Recommended)
 
-### Step 1: Add Route to Configuration
+This allows clients to keep using `api.eddata.dev` without any changes.
+
+#### Step 1: Add Route to Configuration
 
 Edit `wrangler.jsonc` in your repository:
 
@@ -193,14 +195,67 @@ Edit `wrangler.jsonc` in your repository:
   "name": "eddata-api-gateway",
   "routes": [
     {
-      "pattern": "cache.yourdomain.com/*",
-      "zone_name": "yourdomain.com"
+      "pattern": "api.eddata.dev/cache/*",
+      "zone_name": "eddata.dev"
     }
   ]
 }
 ```
 
-### Step 2: Push Changes
+This configuration means:
+- `api.eddata.dev/cache/*` → Handled by Worker (cached)
+- `api.eddata.dev/api/*` → Passes through to origin server
+- All other paths → Passed through to origin server
+
+#### Step 2: Push Changes
+
+```bash
+git add wrangler.jsonc
+git commit -m "Configure worker route on api.eddata.dev"
+git push origin main
+```
+
+GitHub Actions will automatically redeploy with the new route.
+
+#### Step 3: Verify
+
+```bash
+# Test cache endpoint (handled by worker)
+curl -I https://api.eddata.dev/cache/commodity-ticker.json
+
+# Should show worker headers
+# X-Cache: MISS or HIT
+# X-Worker-Version: 1.0.0
+
+# Test API endpoint (passed through)
+curl https://api.eddata.dev/api/v1/systems
+```
+
+**Result:** Clients continue using `api.eddata.dev` - no code changes needed! ✅
+
+---
+
+### Option B: Use Separate Subdomain
+
+If you prefer a dedicated subdomain for cached content:
+
+#### Step 1: Add Route to Configuration
+
+Edit `wrangler.jsonc` in your repository:
+
+```json
+{
+  "name": "eddata-api-gateway",
+  "routes": [
+    {
+      "pattern": "cache.eddata.dev/*",
+      "zone_name": "eddata.dev"
+    }
+  ]
+}
+```
+
+#### Step 2: Push Changes
 
 ```bash
 git add wrangler.jsonc
@@ -210,7 +265,7 @@ git push origin main
 
 GitHub Actions will automatically redeploy with the new route.
 
-### Step 3: Create DNS Record
+#### Step 3: Create DNS Record
 
 1. Go to Cloudflare Dashboard
 2. Select your domain
@@ -221,10 +276,22 @@ GitHub Actions will automatically redeploy with the new route.
    - Target: `eddata-api-gateway.YOUR_SUBDOMAIN.workers.dev`
    - Proxy status: **Proxied** (orange cloud)
 
-### Step 4: Test Custom Domain
+#### Step 4: Update Clients
+
+Update client applications to use the new subdomain:
+
+```javascript
+// Old
+const API_BASE = 'https://api.eddata.dev'
+
+// New
+const CACHE_BASE = 'https://cache.eddata.dev'
+```
+
+#### Step 5: Test Custom Domain
 
 ```bash
-curl https://cache.yourdomain.com/health
+curl https://cache.eddata.dev/cache/commodity-ticker.json
 ```
 
 ---

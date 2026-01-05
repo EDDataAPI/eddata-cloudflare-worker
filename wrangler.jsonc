@@ -15,13 +15,14 @@
   // Account Details (update with your values!)
   // "account_id": "YOUR_ACCOUNT_ID",
   
-  // Custom Domain (configure after deployment)
-  // "routes": [
-  //   {
-  //     "pattern": "cache.eddata.dev/*",
-  //     "zone_name": "eddata.dev"
-  //   }
-  // ],
+  // Route configuration - handles /cache/* on api.eddata.dev
+  // This allows clients to continue using api.eddata.dev without changes
+  "routes": [
+    {
+      "pattern": "api.eddata.dev/cache/*",
+      "zone_name": "eddata.dev"
+    }
+  ],
   
   // Environment Variables
   "vars": {

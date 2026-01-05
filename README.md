@@ -278,7 +278,50 @@ curl -I http://localhost:8787/cache/galnet-news.json
 - [eddata-www](https://github.com/EDDataAPI/eddata-www) - Web frontend
 - [eddata-auth](https://github.com/EDDataAPI/eddata-auth) - Authentication service
 
-## 📝 License
+## � Client Integration
+
+### For Client Applications
+
+Clients (eddata-www, eddata-collector, etc.) can continue using the same API URL:
+
+```javascript
+const API_BASE = 'https://api.eddata.dev'
+```
+
+**No changes required** - The worker is configured to run on the same domain via Cloudflare Routes. All `/cache/*` requests are automatically handled by the worker, while other requests pass through to the origin server.
+
+### Route Configuration
+
+The worker is configured in `wrangler.jsonc` to handle cache requests:
+
+```json
+{
+  "routes": [
+    {
+      "pattern": "api.eddata.dev/cache/*",
+      "zone_name": "eddata.dev"
+    }
+  ]
+}
+```
+
+This means:
+- `api.eddata.dev/cache/*` → Handled by Worker (cached)
+- `api.eddata.dev/api/*` → Passes through to origin server
+- `api.eddata.dev/*` → Passes through to origin server
+
+### Benefits for Clients
+
+- ✅ **No code changes needed** - Keep using existing API URLs
+- ✅ **Automatic caching** - All cache endpoints accelerated
+- ✅ **Higher availability** - Stale-while-revalidate keeps data available
+- ✅ **Global CDN** - Cloudflare's 300+ edge locations
+- ✅ **Automatic retries** - Worker retries failed requests 3x
+- ✅ **Transparent** - Clients see same API contract
+
+---
+
+## �📝 License
 
 AGPL-3.0 - See [LICENSE](LICENSE) file for details
 
