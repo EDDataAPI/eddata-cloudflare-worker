@@ -469,6 +469,125 @@ The worker name in `wrangler.jsonc` must be `eddata-api-gateway`:
    - Commit the change
    - Wait for GitHub Actions to complete
 
+### Issue: "API returns 403 Forbidden errors"
+
+**Symptoms:**
+- Browser console shows `403 (Forbidden)` errors
+- CORS errors: `No 'Access-Control-Allow-Origin' header is present`
+- API works with curl/Postman but fails in browser
+- Cloudflare challenge page ("Just a moment...") appears
+
+**Root Cause:**
+Cloudflare's automated security system is blocking legitimate API requests. Since February 2024, Cloudflare uses an automated botnet protection system that combines IP threat scores, DDoS detection, and botnet tracking. The **Security Level** setting is now automated and set to "Always protected" by default.
+
+**Solutions:**
+
+#### Step 1: Check Bot Management Settings
+
+1. Go to [dash.cloudflare.com](https://dash.cloudflare.com/)
+2. Select `eddata.dev`
+3. Go to **Security** → **Bots**
+4. Review bot management settings
+5. For **public APIs**, ensure no aggressive bot protection is enabled
+
+**Note:** As of 2024, Cloudflare's security is automated. The old "Security Level" dropdown and "Bot Fight Mode" have been replaced with smarter, automated protection. However, aggressive settings may still block legitimate API traffic.
+
+#### Step 2: Verify "I'm Under Attack" Mode is OFF
+
+1. Go to **Security** → **Settings**
+2. Check if **"I'm Under Attack" Mode** is enabled
+3. If enabled, **disable it** (this mode challenges ALL traffic)
+4. This is the only manual security mode that remains configurable
+
+#### Step 3: Add WAF Custom Rule (CRITICAL - Must Select ALL Options!)
+
+Create a rule to skip ALL security for API traffic:
+
+1. Go to **Security** → **WAF** → **Custom rules**
+2. Click **Create rule**
+3. Rule name: `Allow API Traffic`
+4. **When incoming requests match:**
+   - Field: **Hostname**
+   - Operator: **equals**
+   - Value: `api.eddata.dev`
+5. **Action:** Select **Skip** - THIS IS THE ONLY OPTION AVAILABLE
+6. **Select ALL checkboxes below:**
+   - ✅ All remaining custom rules
+   - ✅ All rate limiting rules  
+   - ✅ All managed rules
+   - ✅ All "Super Bot Fight" mode rules
+   - ✅ **IMPORTANT:** Enable "Log matching requests" to monitor if rule is working
+7. Click **Deploy**
+
+**CRITICAL:** ALL 4 checkboxes MUST be selected!
+
+#### Step 4: Add Configuration Rule (CRITICAL)
+
+Ensure the Worker can handle all requests without security challenges:
+
+1. Go to **Rules** → **Configuration Rules**
+2. Click **Create rule**
+3. Rule name: `API Worker Configuration`
+4. **When incoming requests match:**
+   - Field: **Hostname**
+   - Operator: **equals**
+   - Value: `api.eddata.dev`
+5. **Then the settings are:**
+   - Scroll down and find **Browser Integrity Check**
+   - ✅ **ENABLE the checkbox** = This will SKIP/DISABLE the feature
+   - The checkbox must be CHECKED to disable Browser Integrity Check
+6. Click **Deploy**
+
+**IMPORTANT:** 
+- ✅ A checked checkbox means the feature will be SKIPPED (disabled)
+- ✅ The checkbox must be CHECKED to disable Browser Integrity Check
+
+#### Step 5: Verify Changes
+
+Test after changes propagate (1-2 minutes):
+
+```bash
+# Should return 200 OK without challenge
+curl -I https://api.eddata.dev/health
+
+# Test with browser User-Agent
+curl -I -H "User-Agent: Mozilla/5.0" https://api.eddata.dev/health
+
+# Test actual failing endpoint
+curl https://api.eddata.dev/v2/news/galnet
+```
+
+**Expected:** All requests return `200 OK` with proper CORS headers.
+
+#### Step 6: Test from Browser
+
+1. Open browser DevTools (F12)
+2. Go to **Console** tab
+3. Run:
+   ```javascript
+   fetch('https://api.eddata.dev/health')
+     .then(r => r.json())
+     .then(console.log)
+   ```
+4. Should see health response without errors
+
+**Common Mistakes:**
+- ❌ "I'm Under Attack" mode enabled (challenges all traffic)
+- ❌ WAF rules blocking legitimate API requests
+- ❌ Rate limiting rules too aggressive for API traffic
+- ❌ Bot management rules blocking automated legitimate requests
+
+**Note:** These settings affect the entire `api.eddata.dev` subdomain. The Cloudflare Worker will still provide caching and other features.
+
+**Recent Changes (2024-2025):**
+Cloudflare automated their security system in February 2024. The old manual "Security Level" setting (Off/Low/Medium/High) was replaced with "Always protected" automated protection. This new system:
+- Uses real-time DDoS scoring and botnet tracking
+- Reduces false positives for legitimate traffic
+- No longer requires manual threshold configuration
+- The `ip_threat_score` field in WAF rules will be deprecated by Q1 2026
+
+For most users, the automated system works better. However, if your API experiences issues, use the WAF Custom Rules and Configuration Rules above to explicitly allow API traffic.
+
 ---
 
 ## Advanced Configuration
