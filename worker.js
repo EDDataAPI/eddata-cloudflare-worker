@@ -143,8 +143,27 @@ export default {
  */
 async function passthroughToOrigin (request, url, originUrl, env) {
   try {
+    // Check if origin URL would create a loop
+    const requestHost = url.hostname
+    const originHost = new URL(originUrl).hostname
+    
+    if (requestHost === originHost) {
+      console.error('Origin loop detected:', { requestHost, originHost })
+      return new Response(JSON.stringify({
+        error: 'Configuration Error',
+        message: 'ORIGIN_URL creates a loop. Please configure a different origin server.',
+        hint: 'Set ORIGIN_URL in wrangler.jsonc to your actual API server (not api.eddata.dev)'
+      }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...CORS_HEADERS,
+          ...SECURITY_HEADERS
+        }
+      })
+    }
+
     // Build origin URL - replace hostname but keep path and query
-    const originUrlObj = new URL(originUrl)
     const targetUrl = new URL(url.pathname + url.search, originUrl)
 
     // Forward the request to origin
@@ -155,16 +174,24 @@ async function passthroughToOrigin (request, url, originUrl, env) {
       redirect: 'follow'
     })
 
-    // Return response with worker headers
+    // Return response with worker headers and CORS
     return addHeaders(response, {
       'X-Cache': 'PASSTHROUGH',
       'X-Passthrough': 'true'
     })
   } catch (error) {
     console.error('Passthrough error:', error)
-    return new Response('Bad Gateway', {
+    return new Response(JSON.stringify({
+      error: 'Bad Gateway',
+      message: 'Failed to reach origin server',
+      origin: originUrl
+    }), {
       status: 502,
-      headers: { ...CORS_HEADERS, ...SECURITY_HEADERS }
+      headers: {
+        'Content-Type': 'application/json',
+        ...CORS_HEADERS,
+        ...SECURITY_HEADERS
+      }
     })
   }
 }
