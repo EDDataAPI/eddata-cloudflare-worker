@@ -91,14 +91,14 @@ export default {
         response = await handleCacheRequest(request, url, ctx, originUrl, env)
       }
       // Health check endpoint
-      else if (url.pathname === '/health' || url.pathname === '/') {
+      else if (url.pathname === '/health') {
         response = handleHealthCheck(env)
       }
       // Metrics endpoint (if enabled)
       else if (url.pathname === '/metrics' && env.ENABLE_METRICS === 'true') {
         response = handleMetrics(env)
       }
-      // All other paths: passthrough to origin (e.g., /api/*)
+      // All other paths: passthrough to origin (e.g., /api/*, /, /js/*, etc.)
       else {
         return passthroughToOrigin(request, url, originUrl, env)
       }
