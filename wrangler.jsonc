@@ -2,7 +2,7 @@
   // Cloudflare Worker Configuration for EDData Collector
   // Optimized for free tier with advanced caching features
   
-  "name": "eddata-collector",
+  "name": "eddata-api-gateway",
   "main": "worker.js",
   "compatibility_date": "2026-01-05",
   
